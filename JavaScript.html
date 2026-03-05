@@ -1,0 +1,105 @@
+<script>
+  /**
+   * スライド生成を実行
+   */
+  function handleGenerate() {
+    var docUrl = document.getElementById('docUrl').value.trim();
+    var templateUrl = document.getElementById('templateUrl').value.trim();
+    var geminiApiKey = document.getElementById('geminiApiKey').value.trim();
+    var outputTitle = document.getElementById('outputTitle').value.trim();
+
+    // バリデーション
+    if (!docUrl || !templateUrl || !geminiApiKey) {
+      showError('必須項目を全て入力してください。');
+      return;
+    }
+
+    // UI状態を更新
+    setLoading(true);
+    showStatus('スライドを生成しています... しばらくお待ちください。');
+    hideResult();
+    hideError();
+
+    // サーバー側の関数を呼び出し
+    google.script.run
+      .withSuccessHandler(onSuccess)
+      .withFailureHandler(onFailure)
+      .generateSlides({
+        docUrl: docUrl,
+        templateUrl: templateUrl,
+        geminiApiKey: geminiApiKey,
+        outputTitle: outputTitle
+      });
+  }
+
+  /**
+   * 成功時のコールバック
+   */
+  function onSuccess(result) {
+    setLoading(false);
+
+    if (result.success) {
+      hideStatus();
+      showResult(result.message, result.slideUrl);
+    } else {
+      hideStatus();
+      showError(result.message);
+    }
+  }
+
+  /**
+   * 失敗時のコールバック
+   */
+  function onFailure(error) {
+    setLoading(false);
+    hideStatus();
+    showError('予期しないエラーが発生しました: ' + error.message);
+  }
+
+  // ========== UI ヘルパー ==========
+
+  function setLoading(isLoading) {
+    var btn = document.getElementById('generateBtn');
+    btn.disabled = isLoading;
+    btn.textContent = isLoading ? '生成中...' : 'スライドを生成';
+
+    var spinner = document.getElementById('spinner');
+    spinner.style.display = isLoading ? 'block' : 'none';
+  }
+
+  function showStatus(message) {
+    var area = document.getElementById('statusArea');
+    var msg = document.getElementById('statusMessage');
+    area.style.display = 'block';
+    msg.textContent = message;
+  }
+
+  function hideStatus() {
+    document.getElementById('statusArea').style.display = 'none';
+  }
+
+  function showResult(message, slideUrl) {
+    var area = document.getElementById('resultArea');
+    var msg = document.getElementById('resultMessage');
+    var link = document.getElementById('resultLink');
+
+    area.style.display = 'block';
+    msg.textContent = message;
+    link.href = slideUrl;
+  }
+
+  function hideResult() {
+    document.getElementById('resultArea').style.display = 'none';
+  }
+
+  function showError(message) {
+    var area = document.getElementById('errorArea');
+    var msg = document.getElementById('errorMessage');
+    area.style.display = 'block';
+    msg.textContent = message;
+  }
+
+  function hideError() {
+    document.getElementById('errorArea').style.display = 'none';
+  }
+</script>

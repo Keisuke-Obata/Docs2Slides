@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include('Stylesheet'); ?>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>Docs2Slides</h1>
+      <p class="subtitle">Googleドキュメントのストーリーラインからプレゼンテーションを自動生成</p>
+    </header>
+
+    <main class="main">
+      <form id="generateForm" onsubmit="return false;">
+        <div class="form-group">
+          <label for="docUrl">
+            Googleドキュメント URL
+            <span class="required">*</span>
+          </label>
+          <input type="url" id="docUrl" placeholder="https://docs.google.com/document/d/..." required>
+          <p class="hint">ストーリーラインが記載されたGoogleドキュメントのURL</p>
+        </div>
+
+        <div class="form-group">
+          <label for="templateUrl">
+            テンプレートスライド URL
+            <span class="required">*</span>
+          </label>
+          <input type="url" id="templateUrl" placeholder="https://docs.google.com/presentation/d/..." required>
+          <p class="hint">会社のスライドテンプレートのURL（1枚目をベースレイアウトとして使用）</p>
+        </div>
+
+        <div class="form-group">
+          <label for="geminiApiKey">
+            Gemini API キー
+            <span class="required">*</span>
+          </label>
+          <input type="password" id="geminiApiKey" placeholder="APIキーを入力..." required>
+          <p class="hint">ボディコンテンツのAI生成に使用します</p>
+        </div>
+
+        <div class="form-group">
+          <label for="outputTitle">出力ファイル名</label>
+          <input type="text" id="outputTitle" placeholder="自動生成（省略可）">
+        </div>
+
+        <button type="button" id="generateBtn" class="btn btn-primary" onclick="handleGenerate()">
+          スライドを生成
+        </button>
+      </form>
+
+      <div id="statusArea" class="status-area" style="display:none;">
+        <div id="spinner" class="spinner" style="display:none;"></div>
+        <p id="statusMessage" class="status-message"></p>
+      </div>
+
+      <div id="resultArea" class="result-area" style="display:none;">
+        <div class="result-card success">
+          <h3>生成完了</h3>
+          <p id="resultMessage"></p>
+          <a id="resultLink" href="#" target="_blank" class="btn btn-link">
+            スライドを開く
+          </a>
+        </div>
+      </div>
+
+      <div id="errorArea" class="error-area" style="display:none;">
+        <div class="result-card error">
+          <h3>エラー</h3>
+          <p id="errorMessage"></p>
+        </div>
+      </div>
+    </main>
+
+    <section class="format-guide">
+      <h2>ドキュメントのフォーマット</h2>
+      <div class="format-example">
+        <pre>
+===スライド1===
+タイトル: 売上報告 2024年第4四半期
+メッセージ: 前年同期比120%の成長を達成
+ボディ:
+売上推移を棒グラフで表示してください。
+主要な成長要因を箇条書きで3点まとめてください。
+
+===スライド2===
+タイトル: 地域別売上分析
+メッセージ: 関東エリアが全体の45%を占める
+ボディ:
+地域別の売上割合を円グラフで表示してください。
+[図表: https://docs.google.com/spreadsheets/d/xxxxx#Sheet1!A1:D10]
+
+===スライド3===
+タイトル: 今後の戦略
+メッセージ: 3つの柱で持続的成長を実現
+ボディ:
+以下の3つの戦略を比較ボックスで表示してください：
+1. 新規顧客開拓 - デジタルマーケティング強化
+2. 既存顧客深耕 - クロスセル推進
+3. 新サービス展開 - サブスクモデル導入
+        </pre>
+      </div>
+
+      <h3>アセット記法</h3>
+      <table class="format-table">
+        <tr>
+          <th>記法</th>
+          <th>説明</th>
+        </tr>
+        <tr>
+          <td><code>[図表: スプレッドシートURL]</code></td>
+          <td>スプレッドシートのチャートまたはデータを挿入</td>
+        </tr>
+        <tr>
+          <td><code>[図表: URL#シート名!範囲]</code></td>
+          <td>特定のシート・範囲を指定して挿入</td>
+        </tr>
+        <tr>
+          <td><code>[画像: Google Drive URL]</code></td>
+          <td>Google Drive上の画像を挿入</td>
+        </tr>
+      </table>
+    </section>
+
+    <footer class="footer">
+      <p>Docs2Slides - Powered by Gemini AI</p>
+    </footer>
+  </div>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
