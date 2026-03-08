@@ -99,6 +99,9 @@ var AIService = (function() {
    * @param {boolean} jsonMode - JSON出力モードを使用するか
    * @return {string|null} レスポンステキスト
    */
+  var MAX_RETRIES = 4;
+  var INITIAL_BACKOFF_MS = 2000;
+
   function callGemini(prompt, apiKey, jsonMode) {
     var url = GEMINI_API_URL + '?key=' + apiKey;
 
@@ -129,25 +132,44 @@ var AIService = (function() {
       muteHttpExceptions: true
     };
 
-    try {
-      var response = UrlFetchApp.fetch(url, options);
-      var responseCode = response.getResponseCode();
+    for (var attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        var response = UrlFetchApp.fetch(url, options);
+        var responseCode = response.getResponseCode();
 
-      if (responseCode !== 200) {
-        Logger.log('Gemini API error: ' + responseCode + ' - ' + response.getContentText());
+        // 429 (Rate Limit) または 503 (Service Unavailable) はリトライ
+        if (responseCode === 429 || responseCode === 503) {
+          var waitMs = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+          Logger.log('Gemini API rate limited (' + responseCode + '). Retry ' + (attempt + 1) + '/' + MAX_RETRIES + ' after ' + waitMs + 'ms');
+          if (attempt < MAX_RETRIES) {
+            Utilities.sleep(waitMs);
+            continue;
+          }
+          Logger.log('Gemini API: max retries exceeded.');
+          return null;
+        }
+
+        if (responseCode !== 200) {
+          Logger.log('Gemini API error: ' + responseCode + ' - ' + response.getContentText());
+          return null;
+        }
+
+        var json = JSON.parse(response.getContentText());
+        if (json.candidates && json.candidates.length > 0 &&
+            json.candidates[0].content && json.candidates[0].content.parts) {
+          return json.candidates[0].content.parts[0].text;
+        }
+        return null;
+      } catch (e) {
+        Logger.log('Gemini API call error (attempt ' + (attempt + 1) + '): ' + e.message);
+        if (attempt < MAX_RETRIES) {
+          Utilities.sleep(INITIAL_BACKOFF_MS * Math.pow(2, attempt));
+          continue;
+        }
         return null;
       }
-
-      var json = JSON.parse(response.getContentText());
-      if (json.candidates && json.candidates.length > 0 &&
-          json.candidates[0].content && json.candidates[0].content.parts) {
-        return json.candidates[0].content.parts[0].text;
-      }
-      return null;
-    } catch (e) {
-      Logger.log('Gemini API call error: ' + e.message);
-      return null;
     }
+    return null;
   }
 
   /**

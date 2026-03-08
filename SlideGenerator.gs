@@ -43,6 +43,11 @@ var SlideGenerator = (function() {
         ', message=' + (placeholders.message ? placeholders.message.text : 'null') +
         ', body=' + (placeholders.body ? 'found' : 'null'));
       populateSlide(slide, slideDataArray[k], placeholders, geminiApiKey, presentationId);
+
+      // API レートリミット回避: スライド間に1秒のウェイト
+      if (k < slideDataArray.length - 1) {
+        Utilities.sleep(1000);
+      }
     }
 
     presentation.saveAndClose();
