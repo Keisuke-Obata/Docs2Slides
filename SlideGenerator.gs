@@ -20,31 +20,29 @@ var SlideGenerator = (function() {
       throw new Error('テンプレートにスライドがありません。');
     }
 
-    // テンプレートの1枚目をベースレイアウトとして使用
+    // テンプレートの1枚目をベースとして使用
     var baseSlide = templateSlides[0];
 
-    // テンプレートのプレースホルダー情報を解析
-    var placeholders = analyzePlaceholders(baseSlide);
-
-    // 各スライドデータに対してスライドを生成
-    for (var i = 0; i < slideDataArray.length; i++) {
-      var slideData = slideDataArray[i];
-
-      if (i === 0) {
-        // 最初のスライドはテンプレートの1枚目を直接使用
-        populateSlide(baseSlide, slideData, placeholders, geminiApiKey, presentationId);
-      } else {
-        // 2枚目以降はテンプレートを複製
-        var newSlide = duplicateSlide(presentation, baseSlide, i);
-        var newPlaceholders = analyzePlaceholders(newSlide);
-        populateSlide(newSlide, slideData, newPlaceholders, geminiApiKey, presentationId);
-      }
+    // 2枚目以降のスライドをbaseSlideから複製して先に用意する
+    for (var i = 1; i < slideDataArray.length; i++) {
+      presentation.appendSlide(baseSlide);
     }
 
-    // テンプレートに余分なスライドがあれば削除（生成したスライド以降）
+    // テンプレートに元々2枚目以降があれば削除
     var allSlides = presentation.getSlides();
     for (var j = allSlides.length - 1; j >= slideDataArray.length; j--) {
       allSlides[j].remove();
+    }
+
+    // 各スライドにコンテンツを配置
+    var slides = presentation.getSlides();
+    for (var k = 0; k < slideDataArray.length; k++) {
+      var slide = slides[k];
+      var placeholders = analyzePlaceholders(slide);
+      Logger.log('Slide ' + k + ' placeholders: title=' + (placeholders.title ? placeholders.title.text : 'null') +
+        ', message=' + (placeholders.message ? placeholders.message.text : 'null') +
+        ', body=' + (placeholders.body ? 'found' : 'null'));
+      populateSlide(slide, slideDataArray[k], placeholders, geminiApiKey, presentationId);
     }
 
     presentation.saveAndClose();
@@ -52,7 +50,7 @@ var SlideGenerator = (function() {
 
   /**
    * テンプレートスライドのプレースホルダーを解析
-   * 位置（左上=タイトル、その下=メッセージ、中央〜下=ボディ）で判定
+   * テキストを含むShapeのみを対象とし、位置・サイズから役割を推定する
    */
   function analyzePlaceholders(slide) {
     var elements = slide.getPageElements();
@@ -62,50 +60,64 @@ var SlideGenerator = (function() {
       var el = elements[i];
       if (el.getPageElementType() === SlidesApp.PageElementType.SHAPE) {
         var shape = el.asShape();
-        if (shape.getText()) {
-          var transform = el.getTransform();
-          var top = el.getTop();
-          var left = el.getLeft();
-          var width = el.getWidth();
-          var height = el.getHeight();
+        var textContent = shape.getText().asString().trim();
+        // テキストが空のシェイプ（装飾・背景）は除外
+        if (!textContent) continue;
 
-          textBoxes.push({
-            element: shape,
-            top: top,
-            left: left,
-            width: width,
-            height: height,
-            text: shape.getText().asString().trim(),
-            area: width * height
-          });
-        }
+        var top = el.getTop();
+        var left = el.getLeft();
+        var width = el.getWidth();
+        var height = el.getHeight();
+
+        textBoxes.push({
+          element: shape,
+          objectId: el.getObjectId(),
+          top: top,
+          left: left,
+          width: width,
+          height: height,
+          text: textContent,
+          area: width * height
+        });
       }
     }
 
     // 位置でソート（上から下、左から右）
     textBoxes.sort(function(a, b) {
-      if (Math.abs(a.top - b.top) < 20) {
+      var topDiff = a.top - b.top;
+      if (Math.abs(topDiff) < 20) {
         return a.left - b.left;
       }
-      return a.top - b.top;
+      return topDiff;
     });
 
     var result = {
       title: null,
       message: null,
       body: null,
+      allTextBoxes: textBoxes,
       allElements: elements
     };
 
-    // テキストボックスの役割を推定
-    if (textBoxes.length >= 1) {
-      result.title = textBoxes[0]; // 最も上（左上）= タイトル
-    }
+    if (textBoxes.length === 0) return result;
+
+    // 最上部の小さめのテキストボックス = タイトル
+    result.title = textBoxes[0];
+
     if (textBoxes.length >= 2) {
-      result.message = textBoxes[1]; // 2番目 = メッセージ
+      // 2番目のテキストボックス = メッセージ
+      result.message = textBoxes[1];
     }
+
     if (textBoxes.length >= 3) {
-      result.body = textBoxes[2]; // 3番目 = ボディ
+      // 3番目以降で最も面積が大きいもの = ボディ
+      var bodyCandidate = textBoxes[2];
+      for (var j = 3; j < textBoxes.length; j++) {
+        if (textBoxes[j].area > bodyCandidate.area) {
+          bodyCandidate = textBoxes[j];
+        }
+      }
+      result.body = bodyCandidate;
     }
 
     return result;
@@ -196,6 +208,9 @@ var SlideGenerator = (function() {
     // ボディ領域の位置とサイズを決定
     var bodyArea = getBodyArea(placeholders);
 
+    // ボディプレースホルダーを削除（objectIdで正確に特定）
+    removeBodyPlaceholder(slide, placeholders);
+
     // アセットが含まれる場合は先に処理
     var hasAssets = slideData.assets && slideData.assets.length > 0;
 
@@ -244,9 +259,6 @@ var SlideGenerator = (function() {
    * アセット（図表・画像）を含むボディを生成
    */
   function generateBodyWithAssets(slide, slideData, bodyArea, geminiApiKey, presentationId) {
-    // 既存のボディプレースホルダーを削除
-    removeBodyPlaceholder(slide, bodyArea);
-
     var assets = slideData.assets;
     var bodyText = slideData.body;
 
@@ -287,9 +299,6 @@ var SlideGenerator = (function() {
    * AIを使ってボディコンテンツを生成
    */
   function generateBodyWithAI(slide, slideData, bodyArea, geminiApiKey, presentationId) {
-    // 既存のボディプレースホルダーのテキストをクリア
-    removeBodyPlaceholder(slide, bodyArea);
-
     // Gemini APIでボディコンテンツの構成を決定
     var bodyPlan = AIService.planBodyContent(slideData, geminiApiKey);
 
@@ -342,19 +351,20 @@ var SlideGenerator = (function() {
   }
 
   /**
-   * ボディプレースホルダーを削除
+   * ボディプレースホルダーを削除（objectIdで正確に特定）
    */
-  function removeBodyPlaceholder(slide, bodyArea) {
-    var elements = slide.getPageElements();
-    for (var i = elements.length - 1; i >= 0; i--) {
-      var el = elements[i];
-      if (el.getPageElementType() === SlidesApp.PageElementType.SHAPE) {
-        var top = el.getTop();
-        var left = el.getLeft();
-        // ボディ領域内のテキストボックスを削除
-        if (Math.abs(top - bodyArea.top) < 30 && Math.abs(left - bodyArea.left) < 30) {
-          el.remove();
+  function removeBodyPlaceholder(slide, placeholders) {
+    if (placeholders.body && placeholders.body.objectId) {
+      try {
+        var elements = slide.getPageElements();
+        for (var i = 0; i < elements.length; i++) {
+          if (elements[i].getObjectId() === placeholders.body.objectId) {
+            elements[i].remove();
+            break;
+          }
         }
+      } catch (e) {
+        Logger.log('removeBodyPlaceholder error: ' + e.message);
       }
     }
   }
@@ -598,22 +608,6 @@ var SlideGenerator = (function() {
     var file = DriveApp.getFileById(asset.fileId);
     var blob = file.getAs('image/png');
     slide.insertImage(blob, left, top, width, height);
-  }
-
-  /**
-   * スライドを複製
-   */
-  function duplicateSlide(presentation, sourceSlide, insertIndex) {
-    // Slides APIではinsertionIndexは0始まり
-    var newSlide = presentation.insertSlide(insertIndex, sourceSlide.getLayout());
-
-    // ソーススライドの全要素をコピー
-    var sourceElements = sourceSlide.getPageElements();
-    // 実際にはsourceSlideを直接コピーする方が良い
-    // presentation.appendSlide(sourceSlide) を使用
-    presentation.getSlides()[insertIndex - 1]; // 既にinsertSlideで作成済み
-
-    return presentation.getSlides()[insertIndex];
   }
 
   return {

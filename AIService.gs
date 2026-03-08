@@ -14,16 +14,36 @@ var AIService = (function() {
   function planBodyContent(slideData, apiKey) {
     var prompt = buildBodyPlanPrompt(slideData);
 
-    var response = callGemini(prompt, apiKey);
-    if (!response) return null;
+    var response = callGemini(prompt, apiKey, true);
+    if (!response) {
+      Logger.log('Gemini API returned null. Falling back to text.');
+      return {
+        elements: [{
+          type: 'text',
+          content: slideData.body
+        }]
+      };
+    }
 
     try {
       // JSONレスポンスをパース
       var jsonStr = extractJson(response);
-      return JSON.parse(jsonStr);
+      var parsed = JSON.parse(jsonStr);
+
+      // elementsの妥当性チェック
+      if (!parsed.elements || !Array.isArray(parsed.elements) || parsed.elements.length === 0) {
+        Logger.log('AI returned invalid structure: ' + jsonStr);
+        return {
+          elements: [{
+            type: 'text',
+            content: slideData.body
+          }]
+        };
+      }
+
+      return parsed;
     } catch (e) {
       Logger.log('AI response parse error: ' + e.message + '\nResponse: ' + response);
-      // フォールバック: シンプルなテキスト要素として返す
       return {
         elements: [{
           type: 'text',
@@ -66,18 +86,32 @@ var AIService = (function() {
       '- bulletsは要点列挙に適しています\n' +
       '- 比較の場合、itemsは{title: "タイトル", content: "内容"}のオブジェクト配列にしてください\n' +
       '- プロセスフローの場合、stepsは{title: "ステップ名", description: "説明"}のオブジェクト配列にしてください\n' +
-      '- 日本語で回答してください\n' +
-      '- JSONのみを返してください。マークダウンのコードブロックは使用しないでください';
+      '- chart_descriptionの場合、chartType, chartData(labels配列とvalues配列), titleを必ず含めてください\n' +
+      '- tableの場合、headers(文字列配列)とrows(文字列配列の配列)を必ず含めてください\n' +
+      '- 実際のプレゼンで使えるリアルなサンプルデータを生成してください\n' +
+      '- 日本語で回答してください';
   }
 
   /**
    * Gemini APIを呼び出す
    * @param {string} prompt - プロンプト
    * @param {string} apiKey - APIキー
+   * @param {boolean} jsonMode - JSON出力モードを使用するか
    * @return {string|null} レスポンステキスト
    */
-  function callGemini(prompt, apiKey) {
+  function callGemini(prompt, apiKey, jsonMode) {
     var url = GEMINI_API_URL + '?key=' + apiKey;
+
+    var generationConfig = {
+      temperature: 0.3,
+      topP: 0.8,
+      maxOutputTokens: 4096
+    };
+
+    // JSON modeを有効化（Gemini APIのStructured Output機能）
+    if (jsonMode) {
+      generationConfig.responseMimeType = 'application/json';
+    }
 
     var payload = {
       contents: [{
@@ -85,11 +119,7 @@ var AIService = (function() {
           text: prompt
         }]
       }],
-      generationConfig: {
-        temperature: 0.3,
-        topP: 0.8,
-        maxOutputTokens: 4096
-      }
+      generationConfig: generationConfig
     };
 
     var options = {
