@@ -27,7 +27,7 @@ function include(filename) {
  * @param {Object} params - パラメータ
  * @param {string} params.docUrl - GoogleドキュメントのURL
  * @param {string} params.templateUrl - テンプレートスライドのURL
- * @param {string} params.geminiApiKey - Gemini APIキー
+ * @param {string} params.apiKey - Claude APIキー
  * @param {string} params.outputTitle - 出力スライドのタイトル
  * @return {Object} 結果オブジェクト {success, slideUrl, message}
  */
@@ -49,7 +49,7 @@ function generateSlides(params) {
     var presentationId = newPresentation.getId();
 
     // 4. スライドを生成
-    SlideGenerator.generate(presentationId, slides, params.geminiApiKey);
+    SlideGenerator.generate(presentationId, slides, params.apiKey);
 
     var slideUrl = 'https://docs.google.com/presentation/d/' + presentationId + '/edit';
 
@@ -98,8 +98,8 @@ function validateParams(params) {
   if (!params.templateUrl) {
     throw new Error('テンプレートスライドのURLを指定してください。');
   }
-  if (!params.geminiApiKey) {
-    throw new Error('Gemini APIキーを指定してください。');
+  if (!params.apiKey) {
+    throw new Error('Claude APIキーを指定してください。');
   }
 }
 

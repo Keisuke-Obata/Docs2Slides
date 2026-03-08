@@ -14,9 +14,9 @@ var ChartGenerator = (function() {
    * @param {number} top - Y座標
    * @param {number} width - 幅
    * @param {number} height - 高さ
-   * @param {string} geminiApiKey - Gemini APIキー
+   * @param {string} apiKey - Gemini APIキー
    */
-  function createChart(slide, element, left, top, width, height, geminiApiKey) {
+  function createChart(slide, element, left, top, width, height, apiKey) {
     var chartType = element.chartType || 'bar';
     var chartData = element.chartData;
 

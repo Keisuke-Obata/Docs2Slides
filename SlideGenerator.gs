@@ -10,9 +10,9 @@ var SlideGenerator = (function() {
    * スライドを生成するメイン関数
    * @param {string} presentationId - コピー済みプレゼンテーションのID
    * @param {Array<Object>} slideDataArray - パース済みスライドデータの配列
-   * @param {string} geminiApiKey - Gemini APIキー
+   * @param {string} apiKey - Claude APIキー
    */
-  function generate(presentationId, slideDataArray, geminiApiKey) {
+  function generate(presentationId, slideDataArray, apiKey) {
     var presentation = SlidesApp.openById(presentationId);
     var templateSlides = presentation.getSlides();
 
@@ -42,7 +42,7 @@ var SlideGenerator = (function() {
       Logger.log('Slide ' + k + ' placeholders: title=' + (placeholders.title ? placeholders.title.text : 'null') +
         ', message=' + (placeholders.message ? placeholders.message.text : 'null') +
         ', body=' + (placeholders.body ? 'found' : 'null'));
-      populateSlide(slide, slideDataArray[k], placeholders, geminiApiKey, presentationId);
+      populateSlide(slide, slideDataArray[k], placeholders, apiKey, presentationId);
 
       // API レートリミット回避: スライド間に1秒のウェイト
       if (k < slideDataArray.length - 1) {
@@ -131,7 +131,7 @@ var SlideGenerator = (function() {
   /**
    * スライドにコンテンツを配置
    */
-  function populateSlide(slide, slideData, placeholders, geminiApiKey, presentationId) {
+  function populateSlide(slide, slideData, placeholders, apiKey, presentationId) {
     // タイトルの置換（フォーマット保持）
     if (placeholders.title && slideData.title) {
       replaceTextPreservingFormat(placeholders.title.element, slideData.title);
@@ -144,7 +144,7 @@ var SlideGenerator = (function() {
 
     // ボディの生成
     if (slideData.body) {
-      generateBody(slide, slideData, placeholders, geminiApiKey, presentationId);
+      generateBody(slide, slideData, placeholders, apiKey, presentationId);
     }
   }
 
@@ -209,7 +209,7 @@ var SlideGenerator = (function() {
   /**
    * ボディコンテンツを生成
    */
-  function generateBody(slide, slideData, placeholders, geminiApiKey, presentationId) {
+  function generateBody(slide, slideData, placeholders, apiKey, presentationId) {
     // ボディ領域の位置とサイズを決定
     var bodyArea = getBodyArea(placeholders);
 
@@ -221,10 +221,10 @@ var SlideGenerator = (function() {
 
     if (hasAssets) {
       // アセット付きのボディ生成
-      generateBodyWithAssets(slide, slideData, bodyArea, geminiApiKey, presentationId);
+      generateBodyWithAssets(slide, slideData, bodyArea, apiKey, presentationId);
     } else {
       // テキスト＋AI生成コンテンツのボディ
-      generateBodyWithAI(slide, slideData, bodyArea, geminiApiKey, presentationId);
+      generateBodyWithAI(slide, slideData, bodyArea, apiKey, presentationId);
     }
   }
 
@@ -263,7 +263,7 @@ var SlideGenerator = (function() {
   /**
    * アセット（図表・画像）を含むボディを生成
    */
-  function generateBodyWithAssets(slide, slideData, bodyArea, geminiApiKey, presentationId) {
+  function generateBodyWithAssets(slide, slideData, bodyArea, apiKey, presentationId) {
     var assets = slideData.assets;
     var bodyText = slideData.body;
 
@@ -303,9 +303,9 @@ var SlideGenerator = (function() {
   /**
    * AIを使ってボディコンテンツを生成
    */
-  function generateBodyWithAI(slide, slideData, bodyArea, geminiApiKey, presentationId) {
-    // Gemini APIでボディコンテンツの構成を決定
-    var bodyPlan = AIService.planBodyContent(slideData, geminiApiKey);
+  function generateBodyWithAI(slide, slideData, bodyArea, apiKey, presentationId) {
+    // Claude APIでボディコンテンツの構成を決定
+    var bodyPlan = AIService.planBodyContent(slideData, apiKey);
 
     if (!bodyPlan || !bodyPlan.elements) {
       // AIが使えない場合はシンプルなテキスト配置
@@ -336,7 +336,7 @@ var SlideGenerator = (function() {
 
         case 'chart_description':
           // チャート生成の指示がある場合
-          ChartGenerator.createChart(slide, element, bodyArea.left, currentTop, bodyArea.width, elementHeight, geminiApiKey);
+          ChartGenerator.createChart(slide, element, bodyArea.left, currentTop, bodyArea.width, elementHeight, apiKey);
           break;
 
         case 'comparison':

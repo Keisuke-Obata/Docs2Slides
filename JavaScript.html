@@ -5,11 +5,11 @@
   function handleGenerate() {
     var docUrl = document.getElementById('docUrl').value.trim();
     var templateUrl = document.getElementById('templateUrl').value.trim();
-    var geminiApiKey = document.getElementById('geminiApiKey').value.trim();
+    var apiKey = document.getElementById('apiKey').value.trim();
     var outputTitle = document.getElementById('outputTitle').value.trim();
 
     // バリデーション
-    if (!docUrl || !templateUrl || !geminiApiKey) {
+    if (!docUrl || !templateUrl || !apiKey) {
       showError('必須項目を全て入力してください。');
       return;
     }
@@ -27,7 +27,7 @@
       .generateSlides({
         docUrl: docUrl,
         templateUrl: templateUrl,
-        geminiApiKey: geminiApiKey,
+        apiKey: apiKey,
         outputTitle: outputTitle
       });
   }

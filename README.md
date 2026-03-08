@@ -5,7 +5,7 @@ Googleドキュメントに書かれたストーリーラインから、AIを活
 ## 機能
 
 - **テンプレート準拠**: 会社のスライドテンプレートをベースに、フォント・サイズ・色を維持したままテキストを置換
-- **AI生成ボディ**: Gemini APIを使い、ドキュメントの指示に基づいてボディコンテンツ（箇条書き・テーブル・比較ボックス・プロセスフロー等）を自動生成
+- **AI生成ボディ**: Claude APIを使い、ドキュメントの指示に基づいてボディコンテンツ（箇条書き・テーブル・比較ボックス・プロセスフロー等）を自動生成
 - **図表挿入**: スプレッドシートのチャートやGoogle Drive上の画像をスライドに直接挿入
 - **チャート自動生成**: AIが提案したデータからチャートを一時スプレッドシートで生成し画像として挿入
 
@@ -34,9 +34,9 @@ clasp create --title "Docs2Slides" --type webapp
 clasp push
 ```
 
-### 3. Gemini API キーの取得
+### 3. Claude API キーの取得
 
-1. [Google AI Studio](https://aistudio.google.com/apikey) でAPIキーを作成
+1. [Anthropic Console](https://console.anthropic.com/settings/keys) でAPIキーを作成
 2. Webアプリの画面でAPIキーを入力
 
 ### 4. デプロイ
@@ -140,7 +140,7 @@ Googleドキュメントに以下のフォーマットでストーリーライ�
 | `Code.gs` | Webアプリのエントリーポイント、メイン処理 |
 | `DocumentParser.gs` | Googleドキュメントのパース処理 |
 | `SlideGenerator.gs` | スライド生成、テンプレート操作 |
-| `AIService.gs` | Gemini API連携、コンテンツ生成 |
+| `AIService.gs` | Claude API連携、コンテンツ生成 |
 | `ChartGenerator.gs` | チャート・図表の生成 |
 | `Index.html` | WebアプリのUI |
 | `Stylesheet.html` | CSS |
@@ -152,5 +152,5 @@ Googleドキュメントに以下のフォーマットでストーリーライ�
 - `documents.readonly` - Googleドキュメントの読み取り
 - `presentations` - Googleスライドの作成・編集
 - `drive` - ファイルのコピー、画像の取得
-- `script.external_request` - Gemini API呼び出し
+- `script.external_request` - Claude API呼び出し
 - `spreadsheets.readonly` - スプレッドシートからのデータ取得

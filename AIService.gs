@@ -1,22 +1,25 @@
 /**
- * AIService - Gemini APIを使用してスライドコンテンツを生成する
+ * AIService - Claude APIを使用してスライドコンテンツを生成する
  */
 var AIService = (function() {
 
-  var GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  var CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+  var CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+  var MAX_RETRIES = 3;
+  var INITIAL_BACKOFF_MS = 1000;
 
   /**
    * ボディコンテンツの構成をAIで計画
    * @param {Object} slideData - スライドデータ
-   * @param {string} apiKey - Gemini APIキー
+   * @param {string} apiKey - Claude APIキー
    * @return {Object} コンテンツ計画
    */
   function planBodyContent(slideData, apiKey) {
     var prompt = buildBodyPlanPrompt(slideData);
 
-    var response = callGemini(prompt, apiKey, true);
+    var response = callClaude(prompt, apiKey);
     if (!response) {
-      Logger.log('Gemini API returned null. Falling back to text.');
+      Logger.log('Claude API returned null. Falling back to text.');
       return {
         elements: [{
           type: 'text',
@@ -26,11 +29,9 @@ var AIService = (function() {
     }
 
     try {
-      // JSONレスポンスをパース
       var jsonStr = extractJson(response);
       var parsed = JSON.parse(jsonStr);
 
-      // elementsの妥当性チェック
       if (!parsed.elements || !Array.isArray(parsed.elements) || parsed.elements.length === 0) {
         Logger.log('AI returned invalid structure: ' + jsonStr);
         return {
@@ -89,79 +90,66 @@ var AIService = (function() {
       '- chart_descriptionの場合、chartType, chartData(labels配列とvalues配列), titleを必ず含めてください\n' +
       '- tableの場合、headers(文字列配列)とrows(文字列配列の配列)を必ず含めてください\n' +
       '- 実際のプレゼンで使えるリアルなサンプルデータを生成してください\n' +
-      '- 日本語で回答してください';
+      '- 日本語で回答してください\n' +
+      '- JSONのみを返してください。説明文やマークダウンのコードブロックは不要です';
   }
 
   /**
-   * Gemini APIを呼び出す
+   * Claude APIを呼び出す
    * @param {string} prompt - プロンプト
    * @param {string} apiKey - APIキー
-   * @param {boolean} jsonMode - JSON出力モードを使用するか
    * @return {string|null} レスポンステキスト
    */
-  var MAX_RETRIES = 4;
-  var INITIAL_BACKOFF_MS = 2000;
-
-  function callGemini(prompt, apiKey, jsonMode) {
-    var url = GEMINI_API_URL + '?key=' + apiKey;
-
-    var generationConfig = {
-      temperature: 0.3,
-      topP: 0.8,
-      maxOutputTokens: 4096
-    };
-
-    // JSON modeを有効化（Gemini APIのStructured Output機能）
-    if (jsonMode) {
-      generationConfig.responseMimeType = 'application/json';
-    }
-
+  function callClaude(prompt, apiKey) {
     var payload = {
-      contents: [{
-        parts: [{
-          text: prompt
-        }]
-      }],
-      generationConfig: generationConfig
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
     };
 
     var options = {
       method: 'post',
       contentType: 'application/json',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     };
 
     for (var attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        var response = UrlFetchApp.fetch(url, options);
+        var response = UrlFetchApp.fetch(CLAUDE_API_URL, options);
         var responseCode = response.getResponseCode();
 
-        // 429 (Rate Limit) または 503 (Service Unavailable) はリトライ
-        if (responseCode === 429 || responseCode === 503) {
+        // 429 (Rate Limit) または 529 (Overloaded) はリトライ
+        if (responseCode === 429 || responseCode === 529) {
           var waitMs = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
-          Logger.log('Gemini API rate limited (' + responseCode + '). Retry ' + (attempt + 1) + '/' + MAX_RETRIES + ' after ' + waitMs + 'ms');
+          Logger.log('Claude API rate limited (' + responseCode + '). Retry ' + (attempt + 1) + '/' + MAX_RETRIES + ' after ' + waitMs + 'ms');
           if (attempt < MAX_RETRIES) {
             Utilities.sleep(waitMs);
             continue;
           }
-          Logger.log('Gemini API: max retries exceeded.');
+          Logger.log('Claude API: max retries exceeded.');
           return null;
         }
 
         if (responseCode !== 200) {
-          Logger.log('Gemini API error: ' + responseCode + ' - ' + response.getContentText());
+          Logger.log('Claude API error: ' + responseCode + ' - ' + response.getContentText());
           return null;
         }
 
         var json = JSON.parse(response.getContentText());
-        if (json.candidates && json.candidates.length > 0 &&
-            json.candidates[0].content && json.candidates[0].content.parts) {
-          return json.candidates[0].content.parts[0].text;
+        if (json.content && json.content.length > 0 && json.content[0].text) {
+          return json.content[0].text;
         }
         return null;
       } catch (e) {
-        Logger.log('Gemini API call error (attempt ' + (attempt + 1) + '): ' + e.message);
+        Logger.log('Claude API call error (attempt ' + (attempt + 1) + '): ' + e.message);
         if (attempt < MAX_RETRIES) {
           Utilities.sleep(INITIAL_BACKOFF_MS * Math.pow(2, attempt));
           continue;
@@ -193,6 +181,6 @@ var AIService = (function() {
 
   return {
     planBodyContent: planBodyContent,
-    callGemini: callGemini
+    callClaude: callClaude
   };
 })();
